@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>yt-dlp Web Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .input-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        input[type="url"], select {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        input[type="url"]:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .progress-container {
+            margin: 20px 0;
+            display: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .progress-text {
+            margin-top: 10px;
+            text-align: center;
+            font-weight: 600;
+            color: #666;
+        }
+
+        .files-section {
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 2px solid #f0f0f0;
+        }
+
+        .files-list {
+            display: none;
+        }
+
+        .file-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .file-info {
+            flex: 1;
+        }
+
+        .file-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .file-details {
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .download-btn {
+            background: #28a745;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .download-btn:hover {
+            background: #218838;
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border-left: 4px solid #c62828;
+        }
+
+        .success {
+            background: #e8f5e8;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border-left: 4px solid #2e7d32;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                margin: 10px;
+                border-radius: 15px;
+            }
+
+            .header {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .content {
+                padding: 20px;
+            }
+
+            .file-item {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .download-btn {
+                margin-top: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎬 yt-dlp Web Interface</h1>
+            <p>Download videos from YouTube and other platforms</p>
+        </div>
+        
+        <div class="content">
+            <div class="input-group">
+                <label for="url">Video URL:</label>
+                <input type="url" id="url" placeholder="https://www.youtube.com/watch?v=..." required>
+            </div>
+            
+            <div class="input-group">
+                <label for="quality">Quality:</label>
+                <select id="quality">
+                    <option value="best">Best Quality</option>
+                    <option value="worst">Worst Quality</option>
+                    <option value="bestvideo+bestaudio">Best Video + Audio</option>
+                    <option value="720p">720p</option>
+                    <option value="480p">480p</option>
+                    <option value="360p">360p</option>
+                </select>
+            </div>
+            
+            <button class="btn" onclick="startDownload()">Download Video</button>
+            
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-text" id="progressText">0%</div>
+            </div>
+            
+            <div id="message"></div>
+            
+            <div class="files-section">
+                <h3>Downloaded Files</h3>
+                <button class="btn" onclick="loadFiles()">Refresh Files</button>
+                <div class="files-list" id="filesList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentDownloadId = null;
+        let progressInterval = null;
+
+        function showMessage(message, type = 'info') {
+            const messageDiv = document.getElementById('message');
+            messageDiv.innerHTML = `<div class="${type}">${message}</div>`;
+            setTimeout(() => {
+                messageDiv.innerHTML = '';
+            }, 5000);
+        }
+
+        function startDownload() {
+            const url = document.getElementById('url').value;
+            const quality = document.getElementById('quality').value;
+            
+            if (!url) {
+                showMessage('Please enter a video URL', 'error');
+                return;
+            }
+
+            const btn = document.querySelector('.btn');
+            btn.disabled = true;
+            btn.textContent = 'Downloading...';
+
+            document.getElementById('progressContainer').style.display = 'block';
+            
+            fetch('/download', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    url: url,
+                    quality: quality
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showMessage(data.error, 'error');
+                    btn.disabled = false;
+                    btn.textContent = 'Download Video';
+                    document.getElementById('progressContainer').style.display = 'none';
+                } else {
+                    currentDownloadId = data.download_id;
+                    showMessage('Download started!', 'success');
+                    trackProgress();
+                }
+            })
+            .catch(error => {
+                showMessage('Error: ' + error.message, 'error');
+                btn.disabled = false;
+                btn.textContent = 'Download Video';
+                document.getElementById('progressContainer').style.display = 'none';
+            });
+        }
+
+        function trackProgress() {
+            if (!currentDownloadId) return;
+
+            progressInterval = setInterval(() => {
+                fetch(`/progress/${currentDownloadId}`)
+                .then(response => response.json())
+                .then(data => {
+                    const progressFill = document.getElementById('progressFill');
+                    const progressText = document.getElementById('progressText');
+                    
+                    progressFill.style.width = data.percentage + '%';
+                    progressText.textContent = Math.round(data.percentage) + '%';
+                    
+                    if (data.finished) {
+                        clearInterval(progressInterval);
+                        showMessage('Download completed!', 'success');
+                        document.querySelector('.btn').disabled = false;
+                        document.querySelector('.btn').textContent = 'Download Video';
+                        document.getElementById('url').value = '';
+                        loadFiles();
+                    }
+                })
+                .catch(error => {
+                    console.error('Progress tracking error:', error);
+                });
+            }, 1000);
+        }
+
+        function loadFiles() {
+            fetch('/files')
+            .then(response => response.json())
+            .then(files => {
+                const filesList = document.getElementById('filesList');
+                
+                if (files.length === 0) {
+                    filesList.innerHTML = '<p>No files available</p>';
+                    filesList.style.display = 'block';
+                    return;
+                }
+                
+                let html = '';
+                files.forEach(file => {
+                    const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
+                    html += `
+                        <div class="file-item">
+                            <div class="file-info">
+                                <div class="file-name">${file.name}</div>
+                                <div class="file-details">${sizeInMB} MB • ${file.modified}</div>
+                            </div>
+                            <a href="/download_file/${file.name}" class="download-btn">Download</a>
+                        </div>
+                    `;
+                });
+                
+                filesList.innerHTML = html;
+                filesList.style.display = 'block';
+            })
+            .catch(error => {
+                showMessage('Error loading files: ' + error.message, 'error');
+            });
+        }
+
+        // Load files on page load
+        document.addEventListener('DOMContentLoaded', loadFiles);
+    </script>
+</body>
+</html>
