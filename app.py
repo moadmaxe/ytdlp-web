@@ -34,29 +34,37 @@ def cleanup_old_files():
 
 def progress_hook(d):
     """Progress hook for yt-dlp"""
-    if d['status'] == 'downloading':
-        download_id = d.get('info_dict', {}).get('id', 'unknown')
-        if 'total_bytes' in d:
-            percentage = (d['downloaded_bytes'] / d['total_bytes']) * 100
-        elif 'total_bytes_estimate' in d:
-            percentage = (d['downloaded_bytes'] / d['total_bytes_estimate']) * 100
-        else:
-            percentage = 0
+    try:
+        # Get the download ID from the filename or create a unique one
+        filename = d.get('filename', '')
+        download_id = filename.split('/')[-1].split('_')[0] if filename else 'unknown'
         
-        download_progress[download_id] = {
-            'percentage': round(percentage, 2),
-            'downloaded': d.get('downloaded_bytes', 0),
-            'total': d.get('total_bytes', d.get('total_bytes_estimate', 0)),
-            'speed': d.get('speed', 0),
-            'eta': d.get('eta', 0)
-        }
-    elif d['status'] == 'finished':
-        download_id = d.get('info_dict', {}).get('id', 'unknown')
-        download_progress[download_id] = {
-            'percentage': 100,
-            'finished': True,
-            'filename': d['filename']
-        }
+        if d['status'] == 'downloading':
+            if 'total_bytes' in d:
+                percentage = (d['downloaded_bytes'] / d['total_bytes']) * 100
+            elif 'total_bytes_estimate' in d:
+                percentage = (d['downloaded_bytes'] / d['total_bytes_estimate']) * 100
+            else:
+                percentage = 0
+            
+            download_progress[download_id] = {
+                'percentage': round(percentage, 2),
+                'downloaded': d.get('downloaded_bytes', 0),
+                'total': d.get('total_bytes', d.get('total_bytes_estimate', 0)),
+                'speed': d.get('speed', 0),
+                'eta': d.get('eta', 0),
+                'status': 'downloading'
+            }
+        elif d['status'] == 'finished':
+            download_progress[download_id] = {
+                'percentage': 100,
+                'finished': True,
+                'filename': d['filename'],
+                'status': 'finished'
+            }
+    except Exception as e:
+        print(f"Progress hook error: {e}")
+        pass
 
 @app.route('/')
 def index():
@@ -75,6 +83,13 @@ def download():
         # Generate unique filename
         unique_id = str(uuid.uuid4())[:8]
         
+        # Initialize progress tracking
+        download_progress[unique_id] = {
+            'percentage': 0,
+            'status': 'starting',
+            'finished': False
+        }
+        
         # yt-dlp options
         ydl_opts = {
             'format': quality,
@@ -82,18 +97,32 @@ def download():
             'progress_hooks': [progress_hook],
             'restrictfilenames': True,
             'noplaylist': True,
+            'no_warnings': True,
         }
         
         # Start download in background
         def download_video():
             try:
+                print(f"Starting download for {url}")
+                download_progress[unique_id]['status'] = 'downloading'
+                
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     ydl.download([url])
+                    
+                print(f"Download completed for {unique_id}")
+                download_progress[unique_id].update({
+                    'percentage': 100,
+                    'finished': True,
+                    'status': 'completed'
+                })
+                
             except Exception as e:
                 print(f"Download error: {e}")
                 download_progress[unique_id] = {
                     'error': str(e),
-                    'finished': True
+                    'finished': True,
+                    'status': 'error',
+                    'percentage': 0
                 }
         
         thread = threading.Thread(target=download_video)
@@ -103,12 +132,21 @@ def download():
         return jsonify({'success': True, 'download_id': unique_id})
         
     except Exception as e:
+        print(f"Route error: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/progress/<download_id>')
 def get_progress(download_id):
-    progress = download_progress.get(download_id, {'percentage': 0})
-    return jsonify(progress)
+    try:
+        progress = download_progress.get(download_id, {
+            'percentage': 0,
+            'status': 'not_found',
+            'finished': False
+        })
+        return jsonify(progress)
+    except Exception as e:
+        print(f"Progress error: {e}")
+        return jsonify({'error': str(e), 'percentage': 0, 'finished': False}), 500
 
 @app.route('/files')
 def list_files():
