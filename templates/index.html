@@ -290,11 +290,23 @@
                 return;
             }
 
+            // Basic URL validation
+            try {
+                new URL(url);
+            } catch (e) {
+                showMessage('Please enter a valid URL', 'error');
+                return;
+            }
+
             const btn = document.querySelector('.btn');
             btn.disabled = true;
-            btn.textContent = 'Downloading...';
+            btn.textContent = 'Starting Download...';
 
             document.getElementById('progressContainer').style.display = 'block';
+            document.getElementById('progressFill').style.width = '0%';
+            document.getElementById('progressText').textContent = '0%';
+            
+            console.log('Starting download for:', url);
             
             fetch('/download', {
                 method: 'POST',
@@ -306,21 +318,27 @@
                     quality: quality
                 })
             })
-            .then(response => response.json())
+            .then(response => {
+                console.log('Response status:', response.status);
+                return response.json();
+            })
             .then(data => {
+                console.log('Response data:', data);
                 if (data.error) {
-                    showMessage(data.error, 'error');
+                    showMessage('Error: ' + data.error, 'error');
                     btn.disabled = false;
                     btn.textContent = 'Download Video';
                     document.getElementById('progressContainer').style.display = 'none';
                 } else {
                     currentDownloadId = data.download_id;
-                    showMessage('Download started!', 'success');
+                    showMessage('Download started! ID: ' + currentDownloadId, 'success');
+                    btn.textContent = 'Downloading...';
                     trackProgress();
                 }
             })
             .catch(error => {
-                showMessage('Error: ' + error.message, 'error');
+                console.error('Fetch error:', error);
+                showMessage('Network error: ' + error.message, 'error');
                 btn.disabled = false;
                 btn.textContent = 'Download Video';
                 document.getElementById('progressContainer').style.display = 'none';
@@ -330,29 +348,48 @@
         function trackProgress() {
             if (!currentDownloadId) return;
 
+            console.log('Tracking progress for:', currentDownloadId);
+
             progressInterval = setInterval(() => {
                 fetch(`/progress/${currentDownloadId}`)
                 .then(response => response.json())
                 .then(data => {
+                    console.log('Progress data:', data);
+                    
                     const progressFill = document.getElementById('progressFill');
                     const progressText = document.getElementById('progressText');
                     
-                    progressFill.style.width = data.percentage + '%';
-                    progressText.textContent = Math.round(data.percentage) + '%';
-                    
-                    if (data.finished) {
+                    if (data.error) {
                         clearInterval(progressInterval);
-                        showMessage('Download completed!', 'success');
+                        showMessage('Download failed: ' + data.error, 'error');
+                        document.querySelector('.btn').disabled = false;
+                        document.querySelector('.btn').textContent = 'Download Video';
+                        return;
+                    }
+                    
+                    const percentage = data.percentage || 0;
+                    progressFill.style.width = percentage + '%';
+                    progressText.textContent = Math.round(percentage) + '%';
+                    
+                    if (data.finished || data.status === 'completed') {
+                        clearInterval(progressInterval);
+                        showMessage('Download completed successfully!', 'success');
                         document.querySelector('.btn').disabled = false;
                         document.querySelector('.btn').textContent = 'Download Video';
                         document.getElementById('url').value = '';
                         loadFiles();
+                    } else if (data.status === 'error') {
+                        clearInterval(progressInterval);
+                        showMessage('Download failed: ' + (data.error || 'Unknown error'), 'error');
+                        document.querySelector('.btn').disabled = false;
+                        document.querySelector('.btn').textContent = 'Download Video';
                     }
                 })
                 .catch(error => {
                     console.error('Progress tracking error:', error);
+                    // Don't stop tracking on network errors, just log them
                 });
-            }, 1000);
+            }, 2000); // Check every 2 seconds
         }
 
         function loadFiles() {
